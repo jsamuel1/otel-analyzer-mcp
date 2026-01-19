@@ -1,4 +1,4 @@
-# OTEL Trace Analysis MCP Server
+# OTEL Analyzer MCP Server
 
 MCP server for analyzing OpenTelemetry traces with performance and error diagnosis.
 
@@ -13,6 +13,12 @@ MCP server for analyzing OpenTelemetry traces with performance and error diagnos
 ## Installation
 
 ```bash
+uv tool install otel-analyzer-mcp
+```
+
+Or for development:
+
+```bash
 uv sync
 ```
 
@@ -21,7 +27,7 @@ uv sync
 Run the server:
 
 ```bash
-uv run otel-mcp
+otel-analyzer-mcp
 ```
 
 Or add to your MCP client config:
@@ -29,9 +35,8 @@ Or add to your MCP client config:
 ```json
 {
   "mcpServers": {
-    "otel-mcp": {
-      "command": "uv",
-      "args": ["--directory", "/path/to/otel-mcp", "run", "otel-mcp"]
+    "otel-analyzer-mcp": {
+      "command": "otel-analyzer-mcp"
     }
   }
 }
@@ -53,18 +58,22 @@ Or add to your MCP client config:
 
 Load a trace file:
 
-```
+```text
 load_trace(path="/path/to/trace.json")
 ```
 
 Search X-Ray:
 
-```
+```text
 search_xray(filter_expression='service("my-api") AND responseTime > 5', region="us-east-1")
 ```
 
 Analyze performance:
 
-```
+```text
 analyze_perf(trace_id="abc123")
 ```
+
+## License
+
+MIT
