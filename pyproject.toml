@@ -21,7 +21,7 @@ classifiers = [
 ]
 
 dependencies = [
-    "mcp[cli]>=1.25.0",
+    "fastmcp>=2.14,<3",
     "opentelemetry-proto>=1.39.1",
     "boto3>=1.42.30",
     "pydantic>=2.12.5",

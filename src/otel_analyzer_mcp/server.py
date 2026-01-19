@@ -1,9 +1,11 @@
 """OTEL Trace Analysis MCP Server."""
 
+import argparse
 import json
 from datetime import datetime
+from importlib.metadata import metadata
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 from .analyzers import analyze_errors, analyze_performance
 from .cloudwatch import CloudWatchSpansClient
@@ -11,7 +13,20 @@ from .models import Trace
 from .parsers import parse_file, parse_string
 from .xray import XRayClient
 
-mcp = FastMCP("otel-analyzer-mcp")
+# Get package metadata
+pkg_metadata = metadata("otel-analyzer-mcp")
+__version__ = pkg_metadata["Version"]
+_project_urls = {
+    url.split(", ")[0]: url.split(", ")[1]
+    for url in pkg_metadata.get_all("Project-URL") or []
+}
+__github_url__ = _project_urls.get("Repository", "")
+__pypi_url__ = _project_urls.get("PyPI", "")
+
+mcp = FastMCP(
+    name="OTEL Analyzer",
+    instructions="Analyze OpenTelemetry traces from files, X-Ray, or CloudWatch GenAI observability. Use load_trace first, then analyze_perf/analyze_errs.",
+)
 traces: dict[str, Trace] = {}
 
 
@@ -190,7 +205,30 @@ def get_spans(trace_id: str) -> str:
 
 
 def main():
-    mcp.run()
+    """Entry point for the MCP server."""
+    parser = argparse.ArgumentParser(
+        prog="otel-analyzer-mcp",
+        description="MCP server for analyzing OpenTelemetry traces",
+        epilog=f"GitHub: {__github_url__}\nPyPI: {__pypi_url__}",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}\nGitHub: {__github_url__}\nPyPI: {__pypi_url__}",
+    )
+    parser.add_argument(
+        "--transport",
+        choices=["stdio"],
+        default="stdio",
+        help="Transport protocol (default: stdio)",
+    )
+    
+    # Parse args first - this handles --help and --version before MCP starts
+    args = parser.parse_args()
+    
+    # Only run MCP server if we get past argparse (no --help/--version)
+    mcp.run(transport=args.transport)
 
 
 if __name__ == "__main__":

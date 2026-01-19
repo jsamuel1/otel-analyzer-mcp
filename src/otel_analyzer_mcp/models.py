@@ -1,7 +1,7 @@
 """Normalized trace data models."""
 
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class SpanEvent(BaseModel):
@@ -31,6 +31,8 @@ class Span(BaseModel):
 class Trace(BaseModel):
     """A complete trace with all spans."""
 
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     trace_id: str
     source: str  # file path, "xray", "string"
     format: str  # json, jaeger, protobuf, xray
@@ -56,6 +58,3 @@ class Trace(BaseModel):
             end = max(s.end_time for s in self.spans)
             return (end - start).total_seconds() * 1000
         return 0.0
-
-    class Config:
-        arbitrary_types_allowed = True
