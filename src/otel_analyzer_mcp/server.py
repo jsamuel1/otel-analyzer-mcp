@@ -6,11 +6,12 @@ from datetime import datetime
 from mcp.server.fastmcp import FastMCP
 
 from .analyzers import analyze_errors, analyze_performance
+from .cloudwatch import CloudWatchSpansClient
 from .models import Trace
 from .parsers import parse_file, parse_string
 from .xray import XRayClient
 
-mcp = FastMCP("otel-mcp")
+mcp = FastMCP("otel-analyzer-mcp")
 traces: dict[str, Trace] = {}
 
 
@@ -19,10 +20,20 @@ def load_trace(
     path: str | None = None,
     data: str | None = None,
     trace_id: str | None = None,
+    source: str = "xray",
     profile: str | None = None,
     region: str | None = None,
 ) -> str:
-    """Load a trace from file, string, or X-Ray. Auto-detects format."""
+    """Load a trace from file, string, X-Ray, or CloudWatch. Auto-detects format.
+    
+    Args:
+        path: File path to trace JSON
+        data: Raw JSON string
+        trace_id: Trace ID to fetch from X-Ray or CloudWatch
+        source: Source for trace_id lookup: 'xray' or 'cloudwatch' (default: xray)
+        profile: AWS profile name
+        region: AWS region
+    """
     if path:
         trace = parse_file(path)
         key = trace.trace_id or path.split("/")[-1].rsplit(".", 1)[0]
@@ -30,11 +41,17 @@ def load_trace(
         trace = parse_string(data)
         key = trace.trace_id or str(hash(data))[:8]
     elif trace_id:
-        client = XRayClient(profile=profile, region=region)
-        fetched = client.fetch_traces([trace_id])
-        if not fetched:
-            return f"No trace found for ID: {trace_id}"
-        trace = fetched[0]
+        if source == "cloudwatch":
+            client = CloudWatchSpansClient(profile=profile, region=region)
+            trace = client.fetch_trace(trace_id)
+            if not trace:
+                return f"No trace found in CloudWatch for ID: {trace_id}"
+        else:
+            client = XRayClient(profile=profile, region=region)
+            fetched = client.fetch_traces([trace_id])
+            if not fetched:
+                return f"No trace found in X-Ray for ID: {trace_id}"
+            trace = fetched[0]
         key = trace_id
     else:
         return "Provide path, data, or trace_id"
@@ -44,6 +61,7 @@ def load_trace(
         "id": key,
         "trace_id": trace.trace_id,
         "format": trace.format,
+        "source": trace.source,
         "services": list(trace.services),
         "span_count": len(trace.spans),
         "has_errors": trace.has_errors,
@@ -64,6 +82,34 @@ def search_xray(
     start = datetime.fromisoformat(start_time) if start_time else None
     end = datetime.fromisoformat(end_time) if end_time else None
     results = client.search_traces(filter_expression, start, end, limit)
+    return json.dumps(results)
+
+
+@mcp.tool()
+def search_genai_traces(
+    filter_query: str | None = None,
+    start_time: str | None = None,
+    end_time: str | None = None,
+    limit: int = 20,
+    profile: str | None = None,
+    region: str | None = None,
+) -> str:
+    """Search CloudWatch aws/spans for GenAI traces from Bedrock AgentCore.
+    
+    Args:
+        filter_query: CloudWatch Logs Insights filter (e.g., 'name like /bedrock/')
+        start_time: ISO format start time
+        end_time: ISO format end time
+        limit: Max results (default: 20)
+        profile: AWS profile name
+        region: AWS region
+    
+    Returns GenAI traces with model info, token usage, and latency.
+    """
+    client = CloudWatchSpansClient(profile=profile, region=region)
+    start = datetime.fromisoformat(start_time) if start_time else None
+    end = datetime.fromisoformat(end_time) if end_time else None
+    results = client.search_genai_traces(filter_query, start, end, limit)
     return json.dumps(results)
 
 
